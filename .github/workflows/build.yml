@@ -1,5 +1,8 @@
 name: build
 
+env:
+  ROUTINE_REF: v.2.7.11
+
 on:
   push:
     branches:
@@ -39,7 +42,8 @@ jobs:
             Remove-Item -Path $RoutinePath -Recurse -Force
           }
 
-          git clone --depth 1 https://github.com/henrypp/routine.git $RoutinePath
+          git clone --depth 1 --branch $env:ROUTINE_REF https://github.com/henrypp/routine.git $RoutinePath
+          git -C $RoutinePath rev-parse HEAD
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
