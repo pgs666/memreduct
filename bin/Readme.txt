@@ -10,8 +10,12 @@ lists) with variable result ~10-50%. Application it is compatible with Windows X
 higher operating systems, but some general features available only since Windows Vista.
 
 System requirements:
-- Windows 7, 8, 8.1, 10, 11 64-bit/ARM64
-- An SSE2-capable CPU
+- Windows 7, 8, 8.1, 10, 11 x64
+- Windows 10, 11 ARM64
+- An SSE2-capable CPU (x86/x64 builds only)
+
+ARM64 build note:
+- ARM64 binaries are portable builds and target Windows 10/11.
 
 To activate portable mode, create "memreduct.ini" in application folder, or move it from "%APPDATA%\Henry++\Mem Reduct".
 

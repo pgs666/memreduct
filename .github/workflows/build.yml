@@ -1,0 +1,95 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x64
+            artifact_name: memreduct-x64
+            output_dir: 64
+          - platform: ARM64
+            artifact_name: memreduct-arm64
+            output_dir: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch sibling routine dependency
+        shell: pwsh
+        run: |
+          $RoutinePath = Join-Path $env:GITHUB_WORKSPACE "..\routine"
+
+          if (Test-Path $RoutinePath) {
+            Remove-Item -Path $RoutinePath -Recurse -Force
+          }
+
+          git clone --depth 1 https://github.com/henrypp/routine.git $RoutinePath
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build with project default toolset
+        id: build_default
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          msbuild memreduct.sln `
+            /m `
+            /t:Rebuild `
+            /p:Configuration=Release `
+            /p:Platform=${{ matrix.platform }} `
+            /verbosity:minimal
+
+      - name: Build with v143 fallback toolset
+        if: steps.build_default.outcome == 'failure'
+        shell: pwsh
+        run: |
+          msbuild memreduct.sln `
+            /m `
+            /t:Rebuild `
+            /p:Configuration=Release `
+            /p:Platform=${{ matrix.platform }} `
+            /p:PlatformToolset=v143 `
+            /verbosity:minimal
+
+      - name: Pack portable artifact
+        shell: pwsh
+        run: |
+          $BinPath = Join-Path $env:GITHUB_WORKSPACE "bin\${{ matrix.output_dir }}"
+          $Destination = Join-Path $env:GITHUB_WORKSPACE "artifacts\${{ matrix.platform }}"
+          $Exe = Join-Path $BinPath "memreduct.exe"
+
+          if (-not (Test-Path $Exe)) {
+            throw "memreduct.exe was not found under $BinPath."
+          }
+
+          New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+
+          Copy-Item $Exe (Join-Path $Destination "memreduct.exe") -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "LICENSE") $Destination -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "bin\*.txt") $Destination -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "bin\*.lng") $Destination -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "bin\i18n") $Destination -Recurse -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifacts/${{ matrix.platform }}
+          if-no-files-found: error

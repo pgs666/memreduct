@@ -30,9 +30,27 @@ To activate portable mode, create "memreduct.ini" in application folder, or move
 ```
 
 ### System requirements:
-- Windows 7, 8, 8.1, 10, 11 64-bit/ARM64
-- An SSE2-capable CPU
-- <s>KB2533623</s> [KB3063858](https://www.microsoft.com/en-us/download/details.aspx?id=47442) update for Windows 7 was required
+- Windows 7, 8, 8.1, 10, 11 x64
+- Windows 10, 11 ARM64
+- An SSE2-capable CPU (x86/x64 builds only)
+- <s>KB2533623</s> [KB3063858](https://www.microsoft.com/en-us/download/details.aspx?id=47442) update for Windows 7 x64 was required
+
+### ARM64 build notes:
+- `memreduct.sln` and `memreduct.vcxproj` already contain `Debug|ARM64` and `Release|ARM64` configurations.
+- No ARM64-specific source changes are required in `src/` for the portable build.
+- The ARM64 target uses `MinimumRequiredVersion=10.0`, so ARM64 binaries are intended for Windows 10/11.
+- This repository depends on the sibling `../routine` sources, so CI must fetch that dependency before running `msbuild`.
+
+### GitHub Actions build:
+The workflow file [`.github/workflows/build.yml`](.github/workflows/build.yml) builds portable `x64` and `ARM64` artifacts on GitHub-hosted Windows runners, so you do not need to install a local MSVC toolchain.
+
+With GitHub CLI:
+
+```powershell
+gh workflow run build.yml
+gh run list --workflow build.yml --limit 5
+gh run download RUN_ID -n memreduct-arm64 -D out
+```
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
