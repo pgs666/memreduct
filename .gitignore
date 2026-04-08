@@ -1,5 +1,8 @@
 .vs/
 .vscode/
+.tmp/
+artifacts/
+out/
 temp/
 packages/
 bin/32/

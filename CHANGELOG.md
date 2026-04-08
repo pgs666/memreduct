@@ -1,3 +1,10 @@
+v3.5.3 (8 April 2026)
+- added GitHub Actions x64/ARM64 cloud build workflow
+- added setup.exe packaging and GitHub Release workflow
+- pinned routine dependency for reproducible CI builds
+- fixed routine API compatibility and warning-as-error build issues
+- updated documentation and release metadata
+
 v3.5.2 (1 April 2025)
 - added modified file cache clean
 - fixed pagefile displays wrong information (issue #262)

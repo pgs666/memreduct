@@ -1,11 +1,11 @@
 <h1 align="center">Mem Reduct</h1>
 
 <p align="center">
-	<a href="https://github.com/henrypp/memreduct/releases"><img src="https://img.shields.io/github/v/release/henrypp/memreduct?style=flat-square&include_prereleases&label=version" /></a>
-	<a href="https://github.com/henrypp/memreduct/releases"><img src="https://img.shields.io/github/downloads/henrypp/memreduct/total.svg?style=flat-square" /></a>
-	<a href="https://github.com/henrypp/memreduct/issues"><img src="https://img.shields.io/github/issues-raw/henrypp/memreduct.svg?style=flat-square&label=issues" /></a>
-	<a href="https://github.com/henrypp/memreduct/graphs/contributors"><img src="https://img.shields.io/github/contributors/henrypp/memreduct?style=flat-square" /></a>
-	<a href="https://github.com/henrypp/memreduct/blob/master/LICENSE"><img src="https://img.shields.io/github/license/henrypp/memreduct?style=flat-square" /></a>
+	<a href="https://github.com/pgs666/memreduct/releases"><img src="https://img.shields.io/github/v/release/pgs666/memreduct?style=flat-square&include_prereleases&label=version" /></a>
+	<a href="https://github.com/pgs666/memreduct/releases"><img src="https://img.shields.io/github/downloads/pgs666/memreduct/total.svg?style=flat-square" /></a>
+	<a href="https://github.com/pgs666/memreduct/issues"><img src="https://img.shields.io/github/issues-raw/pgs666/memreduct.svg?style=flat-square&label=issues" /></a>
+	<a href="https://github.com/pgs666/memreduct/graphs/contributors"><img src="https://img.shields.io/github/contributors/pgs666/memreduct?style=flat-square" /></a>
+	<a href="https://github.com/pgs666/memreduct/blob/master/LICENSE"><img src="https://img.shields.io/github/license/pgs666/memreduct?style=flat-square" /></a>
 </p>
 
 -------
@@ -47,10 +47,32 @@ The workflow file [`.github/workflows/build.yml`](.github/workflows/build.yml) b
 With GitHub CLI:
 
 ```powershell
-gh workflow run build.yml
-gh run list --workflow build.yml --limit 5
-gh run download RUN_ID -n memreduct-arm64 -D out
+gh workflow run build.yml -R pgs666/memreduct
+gh run list -R pgs666/memreduct --workflow build.yml --limit 5
+gh run download -R pgs666/memreduct RUN_ID -n memreduct-arm64 -D out
 ```
+
+### GitHub Actions release:
+The workflow file [`.github/workflows/release.yml`](.github/workflows/release.yml) downloads a successful build run's `x64`/`ARM64` artifacts, creates a `setup.exe`, produces portable zip packages, generates a SHA256 file, and then creates or updates GitHub Release `v.<version>`.
+
+With GitHub CLI:
+
+```powershell
+gh workflow run release.yml -R pgs666/memreduct -f version=3.5.3 -f build_run_id=24110754399
+gh run list -R pgs666/memreduct --workflow release.yml --limit 5
+gh release view v.3.5.3 -R pgs666/memreduct
+```
+
+If `build_run_id` is left empty in the workflow dispatch form, the workflow will automatically use the latest successful `build.yml` run.
+
+### Changes in this repository:
+- added GitHub Actions cloud build for `x64` and `ARM64`
+- added a separate release workflow that packages `setup.exe` from build artifacts and publishes a GitHub Release
+- pinned `routine` dependency to `v.2.7.11` for stable CI builds
+- adapted `src/main.c` to the current `routine` public API (`*_ex` config functions, tray API, rectangle helper signature)
+- replaced the old mount manager-specific volume cache flush path with a Win32 volume enumeration implementation that compiles in CI
+- fixed warning-as-error issues reported by the GitHub-hosted MSVC toolchain
+- clarified ARM64/x64/SSE2 support and updated release metadata to `3.5.3`
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
@@ -65,7 +87,7 @@ Binaries have GPG signature `memreduct.exe.sig` in application folder.
 - Key ID: 0x5635B5FD
 - Fingerprint: D985 2361 1524 AB29 BE73 30AC 2881 20A7 5635 B5FD
 ---
-- Website: [github.com/henrypp](https://github.com/henrypp)
+- Website: [github.com/pgs666/memreduct](https://github.com/pgs666/memreduct)
 - Support: sforce5@mail.ru
 ---
 (c) 2011-2026 Henry++

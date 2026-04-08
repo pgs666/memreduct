@@ -1,0 +1,136 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v. prefix
+        required: true
+        default: "3.5.3"
+      build_run_id:
+        description: Optional build workflow run ID to consume artifacts from
+        required: false
+        default: ""
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APP_NAME: "Mem Reduct"
+      APP_NAME_SHORT: "memreduct"
+      APP_VERSION: ${{ inputs.version }}
+      TAG_NAME: v.${{ inputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve build run ID
+        shell: pwsh
+        run: |
+          $RunId = "${{ inputs.build_run_id }}".Trim ()
+
+          if (-not $RunId) {
+            $RunId = gh run list -R $env:GITHUB_REPOSITORY --workflow build.yml --limit 20 --json databaseId,conclusion --jq '[.[] | select(.conclusion == "success")][0].databaseId'
+          }
+
+          if (-not $RunId) {
+            throw "No successful build run was found."
+          }
+
+          "BUILD_RUN_ID=$RunId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Download x64 and ARM64 build artifacts
+        shell: pwsh
+        run: |
+          gh run download $env:BUILD_RUN_ID -R $env:GITHUB_REPOSITORY -n memreduct-x64 -D artifacts\memreduct-x64
+          gh run download $env:BUILD_RUN_ID -R $env:GITHUB_REPOSITORY -n memreduct-arm64 -D artifacts\memreduct-arm64
+
+      - name: Prepare installer input layout
+        shell: pwsh
+        run: |
+          $StageDir = Join-Path $env:GITHUB_WORKSPACE "release-stage"
+          $ReleaseDir = Join-Path $env:GITHUB_WORKSPACE "release-assets"
+
+          New-Item -ItemType Directory -Force -Path $StageDir, $ReleaseDir | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $StageDir "64"), (Join-Path $StageDir "ARM64") | Out-Null
+
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "artifacts\memreduct-x64\*") (Join-Path $StageDir "64") -Recurse -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "artifacts\memreduct-arm64\*") (Join-Path $StageDir "ARM64") -Recurse -Force
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+
+      - name: Build setup.exe
+        shell: pwsh
+        run: |
+          $OutFile = Join-Path $env:GITHUB_WORKSPACE "release-assets\$($env:APP_NAME_SHORT)-$($env:APP_VERSION)-setup.exe"
+          makensis.exe /V2 /DAPP_FILES_DIR="$env:GITHUB_WORKSPACE\release-stage" /DAPP_NAME="$env:APP_NAME" /DAPP_NAME_SHORT="$env:APP_NAME_SHORT" /DAPP_VERSION="$env:APP_VERSION" /X"OutFile $OutFile" packaging\setup_script.nsi
+
+      - name: Pack portable zip assets
+        shell: pwsh
+        run: |
+          Compress-Archive -Path artifacts\memreduct-x64\* -DestinationPath release-assets\memreduct-$env:APP_VERSION-x64-portable.zip -Force
+          Compress-Archive -Path artifacts\memreduct-arm64\* -DestinationPath release-assets\memreduct-$env:APP_VERSION-arm64-portable.zip -Force
+
+      - name: Generate SHA256 checksums
+        shell: pwsh
+        run: |
+          $ChecksumFile = Join-Path $env:GITHUB_WORKSPACE "release-assets\$($env:APP_NAME_SHORT)-$($env:APP_VERSION).sha256"
+          $Lines = Get-ChildItem release-assets -File |
+            Where-Object { $_.Name -ne 'release-notes.md' } |
+            Sort-Object Name |
+            ForEach-Object {
+              $Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower ()
+              "$Hash *$($_.Name)"
+            }
+
+          Set-Content -Path $ChecksumFile -Value $Lines
+
+      - name: Extract release notes from changelog
+        shell: pwsh
+        run: |
+          $Lines = Get-Content CHANGELOG.md
+          $Pattern = "^v$($env:APP_VERSION.Replace ('.', '\\.'))\b"
+          $Start = ($Lines | Select-String -Pattern $Pattern | Select-Object -First 1).LineNumber
+
+          if (-not $Start) {
+            throw "Release notes for version $env:APP_VERSION were not found in CHANGELOG.md"
+          }
+
+          $Notes = New-Object System.Collections.Generic.List[string]
+
+          for ($i = $Start - 1; $i -lt $Lines.Count; $i++) {
+            if ($i -gt ($Start - 1) -and [string]::IsNullOrWhiteSpace ($Lines[$i])) {
+              break
+            }
+
+            $Notes.Add ($Lines[$i])
+          }
+
+          Set-Content -Path release-assets\release-notes.md -Value $Notes
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        run: |
+          $Assets = Get-ChildItem release-assets -File |
+            Where-Object { $_.Name -ne 'release-notes.md' } |
+            Sort-Object Name |
+            ForEach-Object { $_.FullName }
+
+          gh release view $env:TAG_NAME -R $env:GITHUB_REPOSITORY *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG_NAME $Assets -R $env:GITHUB_REPOSITORY --clobber
+            gh release edit $env:TAG_NAME -R $env:GITHUB_REPOSITORY --title $env:TAG_NAME --notes-file release-assets\release-notes.md
+          }
+          else {
+            gh release create $env:TAG_NAME $Assets -R $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title $env:TAG_NAME --notes-file release-assets\release-notes.md
+          }
