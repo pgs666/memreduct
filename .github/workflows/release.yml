@@ -33,7 +33,7 @@ jobs:
       - name: Resolve build run ID
         shell: pwsh
         run: |
-          $RunId = "${{ inputs.build_run_id }}".Trim ()
+          $RunId = "${{ inputs.build_run_id }}".Trim()
 
           if (-not $RunId) {
             $RunId = gh run list -R $env:GITHUB_REPOSITORY --workflow build.yml --limit 20 --json databaseId,conclusion --jq '[.[] | select(.conclusion == "success")][0].databaseId'
@@ -88,7 +88,7 @@ jobs:
             Where-Object { $_.Name -ne 'release-notes.md' } |
             Sort-Object Name |
             ForEach-Object {
-              $Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower ()
+              $Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
               "$Hash *$($_.Name)"
             }
 
@@ -98,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           $Lines = Get-Content CHANGELOG.md
-          $Pattern = "^v$($env:APP_VERSION.Replace ('.', '\\.'))\b"
+          $Pattern = "^v$($env:APP_VERSION.Replace('.', '\\.'))\b"
           $Start = ($Lines | Select-String -Pattern $Pattern | Select-Object -First 1).LineNumber
 
           if (-not $Start) {
@@ -108,7 +108,7 @@ jobs:
           $Notes = New-Object System.Collections.Generic.List[string]
 
           for ($i = $Start - 1; $i -lt $Lines.Count; $i++) {
-            if ($i -gt ($Start - 1) -and [string]::IsNullOrWhiteSpace ($Lines[$i])) {
+            if ($i -gt ($Start - 1) -and [string]::IsNullOrWhiteSpace($Lines[$i])) {
               break
             }
 
