@@ -126,14 +126,14 @@ jobs:
             throw "Release notes for version $env:APP_VERSION were not found in CHANGELOG.md"
           }
 
-          $Notes = New-Object System.Collections.Generic.List[string]
+          $Notes = @()
 
           for ($i = $Start - 1; $i -lt $Lines.Count; $i++) {
             if ($i -gt ($Start - 1) -and [string]::IsNullOrWhiteSpace($Lines[$i])) {
               break
             }
 
-            $Notes.Add ($Lines[$i])
+            $Notes += $Lines[$i]
           }
 
           Set-Content -Path release-assets\release-notes.md -Value $Notes
