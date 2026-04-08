@@ -119,8 +119,15 @@ jobs:
         shell: pwsh
         run: |
           $Lines = Get-Content CHANGELOG.md
-          $Pattern = "^v$($env:APP_VERSION.Replace('.', '\\.'))\b"
-          $Start = ($Lines | Select-String -Pattern $Pattern | Select-Object -First 1).LineNumber
+          $Header = "v$($env:APP_VERSION) "
+          $Start = 0
+
+          for ($i = 0; $i -lt $Lines.Count; $i++) {
+            if ($Lines[$i].StartsWith($Header)) {
+              $Start = $i + 1
+              break
+            }
+          }
 
           if (-not $Start) {
             throw "Release notes for version $env:APP_VERSION were not found in CHANGELOG.md"
