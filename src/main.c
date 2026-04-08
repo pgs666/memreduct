@@ -75,7 +75,7 @@ VOID _app_generate_array (
 
 	index = 0;
 
-	while (_r_obj_enumhashtable (hashtable, NULL, &hash_code, &enum_key))
+	while (_r_obj_enumhashtable (hashtable, NULL, (PULONG_PTR)&hash_code, &enum_key))
 	{
 		if (hash_code <= 99)
 			integers[index] = hash_code;
@@ -2097,7 +2097,7 @@ INT_PTR CALLBACK DlgProc (
 						ClientToScreen (nmlp->hwndFrom, (PPOINT)&rect);
 
 						_r_wnd_recttorectangle (&rectangle, &rect);
-						_r_wnd_adjustrectangletoworkingarea (nmlp->hwndFrom, &rectangle);
+						_r_wnd_adjustrectangletoworkingarea (&rectangle, nmlp->hwndFrom);
 						_r_wnd_rectangletorect (&rect, &rectangle);
 
 						_r_menu_popup (hsubmenu, hwnd, (PPOINT)&rect, TRUE);
