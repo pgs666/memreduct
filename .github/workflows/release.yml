@@ -72,7 +72,28 @@ jobs:
         shell: pwsh
         run: |
           $OutFile = Join-Path $env:GITHUB_WORKSPACE "release-assets\$($env:APP_NAME_SHORT)-$($env:APP_VERSION)-setup.exe"
-          makensis.exe /V2 /DAPP_FILES_DIR="$env:GITHUB_WORKSPACE\release-stage" /DAPP_NAME="$env:APP_NAME" /DAPP_NAME_SHORT="$env:APP_NAME_SHORT" /DAPP_VERSION="$env:APP_VERSION" /X"OutFile $OutFile" packaging\setup_script.nsi
+          $NsisExe = (Get-Command makensis.exe -ErrorAction SilentlyContinue).Source
+
+          if (-not $NsisExe) {
+            $Candidates = @(
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+              "$env:ProgramFiles\NSIS\makensis.exe",
+              "C:\Program Files (x86)\NSIS\makensis.exe"
+            )
+
+            foreach ($Candidate in $Candidates) {
+              if ($Candidate -and (Test-Path $Candidate)) {
+                $NsisExe = $Candidate
+                break
+              }
+            }
+          }
+
+          if (-not $NsisExe) {
+            throw "makensis.exe was not found after NSIS installation."
+          }
+
+          & $NsisExe /V2 /DAPP_FILES_DIR="$env:GITHUB_WORKSPACE\release-stage" /DAPP_NAME="$env:APP_NAME" /DAPP_NAME_SHORT="$env:APP_NAME_SHORT" /DAPP_VERSION="$env:APP_VERSION" /X"OutFile $OutFile" packaging\setup_script.nsi
 
       - name: Pack portable zip assets
         shell: pwsh
