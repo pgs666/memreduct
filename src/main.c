@@ -8,6 +8,19 @@
 
 #include "resource.h"
 
+// routine compatibility: current routine exposes section-aware config APIs via *_ex variants.
+#define _r_config_getboolean(key_name, def_value, section_name) _r_config_getboolean_ex ((key_name), (def_value), (section_name))
+#define _r_config_getlong(key_name, def_value, section_name) _r_config_getlong_ex ((key_name), (def_value), (section_name))
+#define _r_config_getlong64(key_name, def_value, section_name) _r_config_getlong64_ex ((key_name), (def_value), (section_name))
+#define _r_config_getulong(key_name, def_value, section_name) _r_config_getulong_ex ((key_name), (def_value), (section_name))
+#define _r_config_getfont(key_name, logfont, dpi_value, section_name) _r_config_getfont_ex ((key_name), (logfont), (dpi_value), (section_name))
+
+#define _r_config_setboolean(key_name, value, section_name) _r_config_setboolean_ex ((key_name), (value), (section_name))
+#define _r_config_setlong(key_name, value, section_name) _r_config_setlong_ex ((key_name), (value), (section_name))
+#define _r_config_setlong64(key_name, value, section_name) _r_config_setlong64_ex ((key_name), (value), (section_name))
+#define _r_config_setulong(key_name, value, section_name) _r_config_setulong_ex ((key_name), (value), (section_name))
+#define _r_config_setfont(key_name, logfont, dpi_value, section_name) _r_config_setfont_ex ((key_name), (logfont), (dpi_value), (section_name))
+
 STATIC_DATA config = {0};
 
 ULONG limits_arr[13] = {0};
@@ -60,10 +73,12 @@ VOID _app_generate_array (
 			_r_obj_addhashtableitem (hashtable, index, NULL);
 	}
 
+	index = 0;
+
 	while (_r_obj_enumhashtable (hashtable, NULL, &hash_code, &enum_key))
 	{
 		if (hash_code <= 99)
-			*(PULONG_PTR)PTR_ADD_OFFSET (integers, index * sizeof (ULONG)) = hash_code;
+			integers[index] = hash_code;
 
 		if (++index >= count)
 			break;
@@ -204,81 +219,49 @@ FORCEINLINE LPCWSTR _app_getcleanupreason (
 
 NTSTATUS _app_flushvolumecache ()
 {
-	PMOUNTMGR_MOUNT_POINTS object_mountpoints;
-	PMOUNTMGR_MOUNT_POINT mountpoint;
-	OBJECT_ATTRIBUTES oa = {0};
-	IO_STATUS_BLOCK isb;
-	UNICODE_STRING us;
-	HANDLE hdevice;
+	WCHAR volume_name[MAX_PATH];
+	WCHAR open_path[MAX_PATH];
+	HANDLE find_handle;
 	HANDLE hvolume;
 	NTSTATUS status;
 
-	RtlInitUnicodeString (&us, MOUNTMGR_DEVICE_NAME);
+	status = STATUS_SUCCESS;
+	find_handle = FindFirstVolumeW (volume_name, RTL_NUMBER_OF (volume_name));
 
-	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	if (find_handle == INVALID_HANDLE_VALUE)
+		return STATUS_UNSUCCESSFUL;
 
-	status = NtCreateFile (
-		&hdevice,
-		FILE_READ_ATTRIBUTES | SYNCHRONIZE,
-		&oa,
-		&isb,
-		NULL,
-		FILE_ATTRIBUTE_NORMAL,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		FILE_OPEN,
-		FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-		NULL,
-		0
-	);
-
-	if (!NT_SUCCESS (status))
-		return status;
-
-	status = _r_fs_getvolumemountpoints (hdevice, &object_mountpoints);
-
-	if (!NT_SUCCESS (status))
-		goto CleanupExit;
-
-	for (ULONG i = 0; i < object_mountpoints->NumberOfMountPoints; i++)
+	do
 	{
-		mountpoint = &object_mountpoints->MountPoints[i];
+		RtlSecureZeroMemory (open_path, sizeof (open_path));
+		_r_str_copy (open_path, RTL_NUMBER_OF (open_path), volume_name);
 
-		us.Length = mountpoint->SymbolicLinkNameLength;
-		us.MaximumLength = mountpoint->SymbolicLinkNameLength + sizeof (UNICODE_NULL);
-		us.Buffer = PTR_ADD_OFFSET (object_mountpoints, mountpoint->SymbolicLinkNameOffset);
-
-		if (MOUNTMGR_IS_VOLUME_NAME (&us)) // \\??\\Volume{1111-2222}
+		if (open_path[0] != UNICODE_NULL)
 		{
-			InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+			ULONG_PTR length = _r_str_getlength (open_path);
 
-			status = NtCreateFile (
-				&hvolume,
-				FILE_WRITE_DATA | SYNCHRONIZE,
-				&oa,
-				&isb,
-				NULL,
-				FILE_ATTRIBUTE_NORMAL,
-				FILE_SHARE_READ | FILE_SHARE_WRITE,
-				FILE_OPEN,
-				FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-				NULL,
-				0
-			);
-
-			if (NT_SUCCESS (status))
-			{
-				status = _r_fs_flushfile (hvolume);
-
-				NtClose (hvolume);
-			}
+			if (length && open_path[length - 1] == OBJ_NAME_PATH_SEPARATOR)
+				open_path[length - 1] = UNICODE_NULL;
 		}
-	}
 
-	_r_mem_free (object_mountpoints);
+		hvolume = CreateFileW (
+			open_path,
+			GENERIC_READ | GENERIC_WRITE,
+			FILE_SHARE_READ | FILE_SHARE_WRITE,
+			NULL,
+			OPEN_EXISTING,
+			0,
+			NULL
+		);
 
-CleanupExit:
+		if (hvolume != INVALID_HANDLE_VALUE)
+		{
+			status = _r_fs_flushfile (hvolume);
+			CloseHandle (hvolume);
+		}
+	} while (FindNextVolumeW (find_handle, volume_name, RTL_NUMBER_OF (volume_name)));
 
-	NtClose (hdevice);
+	FindVolumeClose (find_handle);
 
 	return status;
 }
@@ -484,7 +467,9 @@ VOID _app_memoryclean (
 	{
 		if (_r_config_getboolean (L"BalloonCleanResults", TRUE, NULL))
 		{
-			if (!_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2))
+			if (hwnd)
+				_r_tray_popup (hwnd, &GUID_TrayIcon, flags, _r_app_getname (), buffer2);
+			else
 				_r_show_message (hwnd, MB_OK | MB_ICONINFORMATION, NULL, buffer2);
 		}
 		else
